@@ -1,11 +1,13 @@
 /**
  * Sarvam <-> Vapi Proxy Server
  * Bridges Vapi's custom STT/TTS with Sarvam AI APIs
- * 
+ * + Groq LLM Proxy (Free tier)
+ *
  * Endpoints:
- *   GET  /          → health check
- *   POST /v1/audio/speech  → TTS (OpenAI-compatible, for Vapi TTS)
- *   WS   /stt       → WebSocket STT proxy (for Vapi transcriber)
+ *   GET  /                    → health check
+ *   POST /v1/audio/speech     → TTS (OpenAI-compatible, for Vapi TTS)
+ *   POST /v1/chat/completions → LLM proxy (Groq - Llama 3.1)
+ *   WS   /stt                 → WebSocket STT proxy (for Vapi transcriber)
  */
 
 const express   = require('express');
@@ -18,15 +20,15 @@ app.use(express.json());
 
 const PORT           = process.env.PORT || 3000;
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY;
+const GROQ_API_KEY   = process.env.GROQ_API_KEY;
 
 if (!SARVAM_API_KEY) {
   console.error('❌ SARVAM_API_KEY not set in environment!');
   process.exit(1);
 }
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
-  console.error('❌ GEMINI_API_KEY not set!');
+if (!GROQ_API_KEY) {
+  console.error('❌ GROQ_API_KEY not set in environment!');
   process.exit(1);
 }
 
@@ -37,12 +39,52 @@ app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Sarvam Vapi Proxy',
-    version: '1.0.0',
+    version: '2.0.0',
     endpoints: {
       tts: 'POST /v1/audio/speech',
+      llm: 'POST /v1/chat/completions',
       stt: 'WS   /stt'
     }
   });
+});
+
+// ─────────────────────────────────────────────
+// LLM Proxy — Groq (Llama 3.1 - Free)
+// Vapi will POST here for AI responses
+// ─────────────────────────────────────────────
+app.post('/v1/chat/completions', async (req, res) => {
+  try {
+    console.log('[LLM] Groq request:', req.body?.messages?.length, 'messages');
+
+    const groqRes = await fetch(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`
+        },
+        body: JSON.stringify({
+          ...req.body,
+          model: 'llama-3.1-8b-instant'   // Fast + Free
+        })
+      }
+    );
+
+    const data = await groqRes.json();
+
+    if (!groqRes.ok) {
+      console.error('[LLM] Groq error:', groqRes.status, JSON.stringify(data));
+    } else {
+      console.log('[LLM] ✅ Groq response OK');
+    }
+
+    res.status(groqRes.status).json(data);
+
+  } catch (err) {
+    console.error('[LLM] Proxy error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -52,7 +94,7 @@ app.get('/', (req, res) => {
 app.post('/v1/audio/speech', async (req, res) => {
   const {
     input,
-    voice = 'meera',   // Sarvam speaker name — change to match your chosen voice
+    voice = 'meera',
     model = 'bulbul:v2'
   } = req.body;
 
@@ -61,6 +103,8 @@ app.post('/v1/audio/speech', async (req, res) => {
   }
 
   try {
+    console.log('[TTS] Sarvam request:', input.substring(0, 50) + '...');
+
     const sarvamRes = await fetch('https://api.sarvam.ai/text-to-speech', {
       method: 'POST',
       headers: {
@@ -73,9 +117,9 @@ app.post('/v1/audio/speech', async (req, res) => {
         speaker: voice,
         model: model,
         pitch: 0,
-        pace: 1.05,        // Slightly faster for natural conversational flow
+        pace: 1.05,
         loudness: 1.0,
-        enable_preprocessing: true,  // Handles numbers/dates in Hinglish
+        enable_preprocessing: true,
         speech_sample_rate: 22050
       })
     });
@@ -106,35 +150,14 @@ app.post('/v1/audio/speech', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// LLM Proxy — Gemini 2.5 Flash
-// ─────────────────────────────────────────────
-app.post('/v1/chat/completions', async (req, res) => {
-  try {
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`
-        },
-        body: JSON.stringify({ ...req.body, model: 'gemini-2.5-flash-latest' })
-      }
-    );
-    const data = await geminiRes.json();
-    res.status(geminiRes.status).json(data);
-  } catch (err) {
-    console.error('[LLM] Gemini error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-// ─────────────────────────────────────────────
 // Start HTTP server (WebSocket attaches to same server)
 // ─────────────────────────────────────────────
 const server = app.listen(PORT, () => {
   console.log(`\n🚀 Sarvam Vapi Proxy running on port ${PORT}`);
-  console.log(`   TTS: POST http://localhost:${PORT}/v1/audio/speech`);
-  console.log(`   STT: WS   ws://localhost:${PORT}/stt\n`);
+  console.log(`   Health: GET  http://localhost:${PORT}/`);
+  console.log(`   LLM:    POST http://localhost:${PORT}/v1/chat/completions`);
+  console.log(`   TTS:    POST http://localhost:${PORT}/v1/audio/speech`);
+  console.log(`   STT:    WS   ws://localhost:${PORT}/stt\n`);
 });
 
 // ─────────────────────────────────────────────
@@ -143,18 +166,14 @@ const server = app.listen(PORT, () => {
 // ─────────────────────────────────────────────
 const wss = new WebSocketServer({ server, path: '/stt' });
 
-/**
- * Build a minimal WAV header around raw PCM data.
- * Vapi sends 16-bit PCM @ 16kHz mono.
- */
 function buildWavHeader(pcmLength, sampleRate = 16000, channels = 1, bitDepth = 16) {
   const buf = Buffer.alloc(44);
   buf.write('RIFF', 0);
   buf.writeUInt32LE(36 + pcmLength, 4);
   buf.write('WAVE', 8);
   buf.write('fmt ', 12);
-  buf.writeUInt32LE(16, 16);            // PCM subchunk size
-  buf.writeUInt16LE(1, 20);             // PCM format
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
   buf.writeUInt16LE(channels, 22);
   buf.writeUInt32LE(sampleRate, 24);
   buf.writeUInt32LE(sampleRate * channels * (bitDepth / 8), 28);
@@ -173,9 +192,8 @@ wss.on('connection', (socket, req) => {
   let silenceTimer = null;
   let processing   = false;
 
-  // Send transcript back to Vapi in the format it expects
   const sendTranscript = (text, isFinal = true) => {
-    if (socket.readyState === 1 /* OPEN */) {
+    if (socket.readyState === 1) {
       socket.send(JSON.stringify({
         type:           'transcript',
         transcriptType: isFinal ? 'final' : 'partial',
@@ -185,14 +203,12 @@ wss.on('connection', (socket, req) => {
     }
   };
 
-  // Called when silence detected — send buffered audio to Sarvam
   const processPCM = async () => {
     if (processing || pcmChunks.length === 0) return;
     processing = true;
 
-    const rawPCM = Buffer.concat(pcmChunks.splice(0));  // drain + clear
+    const rawPCM = Buffer.concat(pcmChunks.splice(0));
 
-    // Sarvam minimum: ~0.1 seconds = 3200 bytes at 16kHz 16-bit mono
     if (rawPCM.length < 3200) {
       processing = false;
       return;
@@ -207,7 +223,7 @@ wss.on('connection', (socket, req) => {
         contentType: 'audio/wav'
       });
       form.append('model',           'saarika:v2');
-      form.append('language_code',   'hi-IN');   // Handles Hindi + Hinglish
+      form.append('language_code',   'hi-IN');
       form.append('with_timestamps', 'false');
 
       const sarvamRes = await fetch('https://api.sarvam.ai/speech-to-text', {
@@ -241,17 +257,14 @@ wss.on('connection', (socket, req) => {
 
   socket.on('message', (data, isBinary) => {
     if (isBinary) {
-      // Binary = PCM audio chunk from Vapi
       pcmChunks.push(Buffer.from(data));
       clearTimeout(silenceTimer);
-      // Process after 500ms of silence (tune this for responsiveness)
       silenceTimer = setTimeout(processPCM, 500);
     } else {
-      // Text = JSON control message from Vapi (session config, etc.)
       try {
         const msg = JSON.parse(data.toString());
         console.log('[STT] Control:', msg.type ?? JSON.stringify(msg));
-      } catch (_) { /* ignore */ }
+      } catch (_) { }
     }
   });
 
