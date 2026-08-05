@@ -116,7 +116,7 @@ app.post('/v1/audio/speech', async (req, res) => {
         inputs: [input],
         target_language_code: 'hi-IN',
         speaker: voice,
-        model: model,
+        model: 'bulbul:v2',
         pitch: 0,
         pace: 1.05,
         loudness: 1.0,
