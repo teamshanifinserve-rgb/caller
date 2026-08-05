@@ -95,7 +95,8 @@ app.post('/v1/audio/speech', async (req, res) => {
   const {
     input,
     voice = 'meera',
-    model = 'bulbul:v2'
+  } = req.body;
+  const model = 'bulbul:v2'; // Always use Sarvam model, ignore Vapi's tts-1
   } = req.body;
 
   if (!input) {
