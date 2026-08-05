@@ -100,6 +100,29 @@ app.post('/v1/audio/speech', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// LLM Proxy — Gemini 2.5 Flash
+// ─────────────────────────────────────────────
+app.post('/v1/chat/completions', async (req, res) => {
+  try {
+    const geminiRes = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`
+        },
+        body: JSON.stringify({ ...req.body, model: 'gemini-2.5-flash' })
+      }
+    );
+    const data = await geminiRes.json();
+    res.status(geminiRes.status).json(data);
+  } catch (err) {
+    console.error('[LLM] Gemini error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────
 // Start HTTP server (WebSocket attaches to same server)
 // ─────────────────────────────────────────────
 const server = app.listen(PORT, () => {
