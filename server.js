@@ -91,8 +91,8 @@ app.post('/v1/chat/completions', async (req, res) => {
 // Vapi sends model:'tts-1' which we ignore — always use bulbul:v2
 // ─────────────────────────────────────────────
 app.post('/v1/audio/speech', async (req, res) => {
-  const input = req.body.input;
-  const voice = req.body.voice || 'meera';
+  const input = req.body.input || req.body.text;
+  const voice = 'anushka'; // Always anushka — ignore jo bhi Vapi bheje
   // Always hardcode Sarvam model — ignore whatever Vapi sends (tts-1 etc)
 
   if (!input) {
