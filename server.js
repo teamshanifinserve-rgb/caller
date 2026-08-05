@@ -50,7 +50,6 @@ app.get('/', (req, res) => {
 
 // ─────────────────────────────────────────────
 // LLM Proxy — Groq (Llama 3.1 - Free)
-// Vapi will POST here for AI responses
 // ─────────────────────────────────────────────
 app.post('/v1/chat/completions', async (req, res) => {
   try {
@@ -66,7 +65,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         },
         body: JSON.stringify({
           ...req.body,
-          model: 'llama-3.1-8b-instant'   // Fast + Free
+          model: 'llama-3.1-8b-instant'
         })
       }
     );
@@ -89,22 +88,19 @@ app.post('/v1/chat/completions', async (req, res) => {
 
 // ─────────────────────────────────────────────
 // TTS — OpenAI-compatible wrapper for Sarvam Bulbul
-// Vapi will POST here when TTS is needed
+// Vapi sends model:'tts-1' which we ignore — always use bulbul:v2
 // ─────────────────────────────────────────────
 app.post('/v1/audio/speech', async (req, res) => {
-  const {
-    input,
-    voice = 'meera',
-  } = req.body;
-  const model = 'bulbul:v2'; // Always use Sarvam model, ignore Vapi's tts-1
-  } = req.body;
+  const input = req.body.input;
+  const voice = req.body.voice || 'meera';
+  // Always hardcode Sarvam model — ignore whatever Vapi sends (tts-1 etc)
 
   if (!input) {
     return res.status(400).json({ error: 'input field is required' });
   }
 
   try {
-    console.log('[TTS] Sarvam request:', input.substring(0, 50) + '...');
+    console.log('[TTS] Sarvam request voice:', voice, '| text:', input.substring(0, 50));
 
     const sarvamRes = await fetch('https://api.sarvam.ai/text-to-speech', {
       method: 'POST',
@@ -151,7 +147,7 @@ app.post('/v1/audio/speech', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// Start HTTP server (WebSocket attaches to same server)
+// Start HTTP server
 // ─────────────────────────────────────────────
 const server = app.listen(PORT, () => {
   console.log(`\n🚀 Sarvam Vapi Proxy running on port ${PORT}`);
@@ -163,7 +159,6 @@ const server = app.listen(PORT, () => {
 
 // ─────────────────────────────────────────────
 // STT — WebSocket bridge for Sarvam Saarika
-// Vapi sends raw PCM audio; we send back transcript
 // ─────────────────────────────────────────────
 const wss = new WebSocketServer({ server, path: '/stt' });
 
