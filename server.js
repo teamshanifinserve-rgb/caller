@@ -118,7 +118,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`
         },
-        body: JSON.stringify({ ...req.body, model: 'gemini-2.5-flash' })
+        body: JSON.stringify({ ...req.body, model: 'gemini-2.5-flash-latest' })
       }
     );
     const data = await geminiRes.json();
