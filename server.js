@@ -33,7 +33,7 @@ app.post('/v1/chat/completions', async (req, res) => {
 });
 
 app.post('/v1/audio/speech', async (req, res) => {
-  const input = req.body.input || req.body.text;
+  const input = req.body.input || req.body.text || req.body?.message?.text;
   if (!input) return res.status(400).json({ error: 'input required' });
   try {
     const r = await fetch('https://api.sarvam.ai/text-to-speech', {
