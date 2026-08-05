@@ -39,7 +39,7 @@ app.post('/v1/audio/speech', async (req, res) => {
     const r = await fetch('https://api.sarvam.ai/text-to-speech', {
       method: 'POST',
       headers: { 'api-subscription-key': SARVAM_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inputs: [input], target_language_code: 'hi-IN', speaker: 'anushka', model: 'bulbul:v2', pitch: 0, pace: 1.05, loudness: 1.0, enable_preprocessing: true, speech_sample_rate: 22050 })
+      body: JSON.stringify({ inputs: [input], target_language_code: 'hi-IN', speaker: 'anushka', model: 'bulbul:v2', pitch: 0, pace: 1.0, loudness: 1.0, enable_preprocessing: true, speech_sample_rate: 22050 })
     });
     if (!r.ok) { const e = await r.text(); return res.status(502).json({ error: e }); }
     const data = await r.json();
